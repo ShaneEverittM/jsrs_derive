@@ -4,7 +4,7 @@ use javascript_rs::runtime::ObjectType;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseBuffer};
-use syn::{parenthesized, token, Error, Field, Ident, Result, Token};
+use syn::{parenthesized, token, Error, Ident, Result};
 use syn::{parse_macro_input, Attribute, DeriveInput};
 
 #[proc_macro_derive(JsObject, attributes(object_type))]
@@ -14,7 +14,7 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
     // Get object_type attribute
     let struct_attr = match ast.attrs.first() {
         None => {
-            return syn::Error::new_spanned(ast, "Expected only one attribute")
+            return Error::new_spanned(ast, "Expected only one attribute")
                 .to_compile_error()
                 .into()
         }
@@ -39,7 +39,7 @@ struct ObjectTypeAttr {
 }
 
 impl Parse for ObjectTypeAttr {
-    fn parse(input: &ParseBuffer) -> syn::Result<Self> {
+    fn parse(input: &ParseBuffer) -> Result<Self> {
         let _inner;
         Ok(ObjectTypeAttr {
             paren: parenthesized!(_inner in input),
@@ -48,7 +48,7 @@ impl Parse for ObjectTypeAttr {
     }
 }
 
-fn parse_object_type(attr: &Attribute) -> syn::Result<ObjectType> {
+fn parse_object_type(attr: &Attribute) -> Result<ObjectType> {
     assert_eq!(attr.style, syn::AttrStyle::Outer);
     if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "object_type" {
         // found the attr
@@ -61,10 +61,10 @@ fn parse_object_type(attr: &Attribute) -> syn::Result<ObjectType> {
             "Array" => Ok(ObjectType::Array),
             "String" => Ok(ObjectType::String),
             "Object" => Ok(ObjectType::Object),
-            _ => Err(syn::Error::new_spanned(attr, "Must match variant")),
+            _ => Err(Error::new_spanned(attr, "Must match variant")),
         }
     } else {
-        Err(syn::Error::new_spanned(
+        Err(Error::new_spanned(
             attr,
             "expected `#[object_type(<type>)]`",
         ))
