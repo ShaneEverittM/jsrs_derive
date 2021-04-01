@@ -35,22 +35,31 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into(),
     };
 
+    let object_type_tokens = match object_type.variant.to_string().as_str() {
+        "Global" => quote! {crate::runtime::ObjectType::Global},
+        "Function" => quote! {crate::runtime::ObjectType::Function},
+        "Array" => quote! {crate::runtime::ObjectType::Array},
+        "String" => quote! {crate::runtime::ObjectType::String},
+        "Object" => quote! {crate::runtime::ObjectType::Object},
+        _ => Error::new_spanned(object_type.variant, "Must match variant").to_compile_error(),
+    };
+
     let tokens = quote! {
-        impl javascript_rs::runtime::Object for #name {
-            fn put(&mut self, name: String, value: javascript_rs::runtime::Value) {
+        impl crate::runtime::Object for #name {
+            fn put(&mut self, name: String, value: crate::runtime::Value) {
                 self.#properties_ident.insert(name, value);
             }
 
-            fn get(&mut self, name: &str) -> Option<javascript_rs::runtime::Value> {
+            fn get(&mut self, name: &str) -> Option<crate::runtime::Value> {
                 self.#properties_ident.get(name).cloned()
             }
 
-            fn get_mut(&mut self, name: &str) -> Option<&mut javascript_rs::runtime::Value> {
+            fn get_mut(&mut self, name: &str) -> Option<&mut crate::runtime::Value> {
                 self.#properties_ident.get_mut(name)
             }
 
-            fn get_type(&self) -> javascript_rs::runtime::ObjectType {
-                #object_type
+            fn get_type(&self) -> crate::runtime::ObjectType {
+               #object_type_tokens
             }
 
             fn as_any(&mut self) -> &mut dyn std::any::Any {
@@ -82,10 +91,8 @@ fn find_property_store(fields: &Punctuated<Field, syn::Token![,]>) -> Result<Ide
             }
         }
     }
-    properties_ident.ok_or_else(|| Error::new_spanned(
-        fields,
-        "Could not find object store in fields",
-    ))
+    properties_ident
+        .ok_or_else(|| Error::new_spanned(fields, "Could not find object store in fields"))
 }
 
 fn get_fields(ast: &DeriveInput) -> &Punctuated<Field, syn::Token![,]> {
@@ -118,24 +125,6 @@ impl Parse for ObjectTypeAttr {
             paren,
             variant: inner.parse()?,
         })
-    }
-}
-
-impl quote::ToTokens for ObjectTypeAttr {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let prefix = quote! {javascript_rs::runtime::ObjectType::};
-        prefix.to_tokens(tokens);
-
-        let variant = match self.variant.to_string().as_str() {
-            "Global" => quote!(Global),
-            "Function" => quote!(Function),
-            "Array" => quote!(Array),
-            "String" => quote!(String),
-            "Object" => quote!(Object),
-            _ => Error::new_spanned(self, "Must match variant").to_compile_error(),
-        };
-
-        variant.to_tokens(tokens);
     }
 }
 
