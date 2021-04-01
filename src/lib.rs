@@ -1,15 +1,16 @@
 extern crate proc_macro;
 
-use javascript_rs::runtime::ObjectType;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseBuffer};
-use syn::{parenthesized, token, Error, Ident, Result};
+use syn::punctuated::Punctuated;
+use syn::{parenthesized, token, Error, Field, Ident, Result};
 use syn::{parse_macro_input, Attribute, DeriveInput};
 
-#[proc_macro_derive(JsObject, attributes(object_type))]
+#[proc_macro_derive(JsObject, attributes(object_type, properties))]
 pub fn my_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
+    let name = &ast.ident;
 
     // Get object_type attribute
     let struct_attr = match ast.attrs.first() {
@@ -21,16 +22,87 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
         Some(attr) => attr,
     };
 
+    let fields = get_fields(&ast);
+
+    let properties_ident = match find_property_store(fields) {
+        Ok(ps) => ps,
+        Err(e) => return e.to_compile_error().into(),
+    };
+
     // Convert that to a type
-    let _object_type = match parse_object_type(struct_attr) {
+    let object_type = match parse_object_type(struct_attr) {
         Ok(t) => t,
         Err(e) => return e.to_compile_error().into(),
     };
 
-    let tokens = quote!();
+    let tokens = quote! {
+        impl javascript_rs::runtime::Object for #name {
+            fn put(&mut self, name: String, value: javascript_rs::runtime::Value) {
+                self.#properties_ident.insert(name, value);
+            }
+
+            fn get(&mut self, name: &str) -> Option<javascript_rs::runtime::Value> {
+                self.#properties_ident.get(name).cloned()
+            }
+
+            fn get_mut(&mut self, name: &str) -> Option<&mut javascript_rs::runtime::Value> {
+                self.#properties_ident.get_mut(name)
+            }
+
+            fn get_type(&self) -> javascript_rs::runtime::ObjectType {
+                #object_type
+            }
+
+            fn as_any(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+        }
+    };
 
     tokens.into()
 }
+
+fn find_property_store(fields: &Punctuated<Field, syn::Token![,]>) -> Result<Ident> {
+    let mut properties_ident = None;
+    for field in fields {
+        if field.ident.clone().unwrap() == "properties" {
+            properties_ident = Some(field.ident.clone().unwrap());
+        } else {
+            let attrs = &field.attrs;
+            for attr in attrs {
+                if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "properties" {
+                    // found the attr
+                    properties_ident = Some(field.ident.clone().unwrap())
+                } else {
+                    return Err(Error::new_spanned(
+                        attr,
+                        "expected `#[object_type(<type>)]`",
+                    ));
+                }
+            }
+        }
+    }
+    properties_ident.ok_or_else(|| Error::new_spanned(
+        fields,
+        "Could not find object store in fields",
+    ))
+}
+
+fn get_fields(ast: &DeriveInput) -> &Punctuated<Field, syn::Token![,]> {
+    // Extract fields of input struct into iterator.
+    if let syn::Data::Struct(syn::DataStruct {
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = ast.data
+    {
+        named
+    } else {
+        // Must match the type of struct we can build, so a struct with named fields.
+        unimplemented!();
+    }
+}
+
+// fn get_property_store() -> Ident {}
 
 #[derive(Debug)]
 struct ObjectTypeAttr {
@@ -40,29 +112,39 @@ struct ObjectTypeAttr {
 
 impl Parse for ObjectTypeAttr {
     fn parse(input: &ParseBuffer) -> Result<Self> {
-        let _inner;
+        let inner;
+        let paren = parenthesized!(inner in input);
         Ok(ObjectTypeAttr {
-            paren: parenthesized!(_inner in input),
-            variant: input.parse()?,
+            paren,
+            variant: inner.parse()?,
         })
     }
 }
 
-fn parse_object_type(attr: &Attribute) -> Result<ObjectType> {
+impl quote::ToTokens for ObjectTypeAttr {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let prefix = quote! {javascript_rs::runtime::ObjectType::};
+        prefix.to_tokens(tokens);
+
+        let variant = match self.variant.to_string().as_str() {
+            "Global" => quote!(Global),
+            "Function" => quote!(Function),
+            "Array" => quote!(Array),
+            "String" => quote!(String),
+            "Object" => quote!(Object),
+            _ => Error::new_spanned(self, "Must match variant").to_compile_error(),
+        };
+
+        variant.to_tokens(tokens);
+    }
+}
+
+fn parse_object_type(attr: &Attribute) -> Result<ObjectTypeAttr> {
     assert_eq!(attr.style, syn::AttrStyle::Outer);
     if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "object_type" {
         // found the attr
         let tokens: proc_macro::TokenStream = attr.tokens.clone().into();
-        let obj_type_attr = syn::parse::<ObjectTypeAttr>(tokens)?;
-
-        match obj_type_attr.variant.to_string().as_str() {
-            "Global" => Ok(ObjectType::Global),
-            "Function" => Ok(ObjectType::Function),
-            "Array" => Ok(ObjectType::Array),
-            "String" => Ok(ObjectType::String),
-            "Object" => Ok(ObjectType::Object),
-            _ => Err(Error::new_spanned(attr, "Must match variant")),
-        }
+        syn::parse::<ObjectTypeAttr>(tokens)
     } else {
         Err(Error::new_spanned(
             attr,
