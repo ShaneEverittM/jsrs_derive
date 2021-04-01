@@ -7,7 +7,7 @@ use syn::punctuated::Punctuated;
 use syn::{parenthesized, token, Error, Field, Ident, Result};
 use syn::{parse_macro_input, Attribute, DeriveInput};
 
-#[proc_macro_derive(JsObject, attributes(object_type, properties))]
+#[proc_macro_derive(Object, attributes(object_type, properties))]
 pub fn my_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
