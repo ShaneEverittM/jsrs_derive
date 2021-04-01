@@ -15,9 +15,12 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
     // Get object_type attribute
     let struct_attr = match ast.attrs.first() {
         None => {
-            return Error::new_spanned(ast, "Expected only one attribute")
-                .to_compile_error()
-                .into()
+            return Error::new_spanned(
+                ast,
+                "Must annotate struct with #[object_type(ObjectType::<variant>)]",
+            )
+            .to_compile_error()
+            .into()
         }
         Some(attr) => attr,
     };
@@ -50,7 +53,7 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
                 self.#properties_ident.insert(name, value);
             }
 
-            fn get(&mut self, name: &str) -> Option<crate::runtime::Value> {
+            fn get(&self, name: &str) -> Option<crate::runtime::Value> {
                 self.#properties_ident.get(name).cloned()
             }
 
@@ -85,7 +88,7 @@ fn find_property_store(fields: &Punctuated<Field, syn::Token![,]>) -> Result<Ide
                 } else {
                     return Err(Error::new_spanned(
                         attr,
-                        "expected `#[object_type(<type>)]`",
+                        "expected #[object_type(<type>)]",
                     ));
                 }
             }
@@ -137,7 +140,7 @@ fn parse_object_type(attr: &Attribute) -> Result<ObjectTypeAttr> {
     } else {
         Err(Error::new_spanned(
             attr,
-            "expected `#[object_type(<type>)]`",
+            "expected #[object_type(<type>)]",
         ))
     }
 }
