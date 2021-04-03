@@ -68,6 +68,14 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
             fn as_any(&mut self) -> &mut dyn std::any::Any {
                 self
             }
+
+            fn format_properties(&self) -> String {
+                let mut buf = String::new();
+                for (k, v) in self.#properties_ident.iter() {
+                    buf += &format!("{}: {}\n", k, v);
+                }
+                buf
+            }
         }
     };
 
@@ -86,10 +94,7 @@ fn find_property_store(fields: &Punctuated<Field, syn::Token![,]>) -> Result<Ide
                     // found the attr
                     properties_ident = Some(field.ident.clone().unwrap())
                 } else {
-                    return Err(Error::new_spanned(
-                        attr,
-                        "expected #[object_type(<type>)]",
-                    ));
+                    return Err(Error::new_spanned(attr, "expected #[object_type(<type>)]"));
                 }
             }
         }
@@ -138,9 +143,6 @@ fn parse_object_type(attr: &Attribute) -> Result<ObjectTypeAttr> {
         let tokens: proc_macro::TokenStream = attr.tokens.clone().into();
         syn::parse::<ObjectTypeAttr>(tokens)
     } else {
-        Err(Error::new_spanned(
-            attr,
-            "expected #[object_type(<type>)]",
-        ))
+        Err(Error::new_spanned(attr, "expected #[object_type(<type>)]"))
     }
 }
