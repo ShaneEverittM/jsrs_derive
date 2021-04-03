@@ -1,5 +1,5 @@
 [package]
-name = "js_derive"
+name = "jsrs_derive"
 version = "0.0.0"
 authors = ["ShaneEverittM <shane.everitt.murphy@gmail.com>"]
 description = "A `cargo generate` template for quick-starting a procedural macro crate"
