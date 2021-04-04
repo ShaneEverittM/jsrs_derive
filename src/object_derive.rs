@@ -5,7 +5,6 @@ use syn::punctuated::Punctuated;
 use syn::{parenthesized, token, Error, Field, Ident, Result};
 use syn::{parse_macro_input, Attribute, DeriveInput};
 
-
 pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
@@ -17,8 +16,8 @@ pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
                 ast,
                 "Must annotate struct with #[object_type(ObjectType::<variant>)]",
             )
-                .to_compile_error()
-                .into()
+            .to_compile_error()
+            .into();
         }
         Some(attr) => attr,
     };
@@ -104,9 +103,9 @@ fn find_property_store(fields: &Punctuated<Field, syn::Token![,]>) -> Result<Ide
 fn get_fields(ast: &DeriveInput) -> &Punctuated<Field, syn::Token![,]> {
     // Extract fields of input struct into iterator.
     if let syn::Data::Struct(syn::DataStruct {
-                                 fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
-                                 ..
-                             }) = ast.data
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = ast.data
     {
         named
     } else {
@@ -115,25 +114,21 @@ fn get_fields(ast: &DeriveInput) -> &Punctuated<Field, syn::Token![,]> {
     }
 }
 
-#[derive(Debug)]
 struct ObjectTypeAttr {
-    paren: token::Paren,
     variant: Ident,
 }
 
 impl Parse for ObjectTypeAttr {
     fn parse(input: &ParseBuffer) -> Result<Self> {
         let inner;
-        let paren = parenthesized!(inner in input);
+        parenthesized!(inner in input);
         Ok(ObjectTypeAttr {
-            paren,
             variant: inner.parse()?,
         })
     }
 }
 
 fn parse_object_type(attr: &Attribute) -> Result<ObjectTypeAttr> {
-    assert_eq!(attr.style, syn::AttrStyle::Outer);
     if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "object_type" {
         // found the attr
         let tokens: proc_macro::TokenStream = attr.tokens.clone().into();
