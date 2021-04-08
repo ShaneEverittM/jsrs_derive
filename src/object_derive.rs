@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseBuffer};
 use syn::punctuated::Punctuated;
-use syn::{parenthesized, token, Error, Field, Ident, Result};
+use syn::{parenthesized, Error, Field, Ident, Result};
 use syn::{parse_macro_input, Attribute, DeriveInput};
 
 pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
