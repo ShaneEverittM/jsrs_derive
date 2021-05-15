@@ -66,6 +66,10 @@ pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
                 self
             }
 
+            fn into_object(self: Box<Self>) -> Box<dyn crate::runtime::Object> {
+                self as Box<dyn Object>
+            }
+
             fn format_properties(&self) -> String {
                 let mut buf = String::new();
                 for (k, v) in self.#properties_ident.iter() {
