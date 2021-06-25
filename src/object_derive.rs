@@ -9,19 +9,6 @@ pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
 
-    // Get object_type attribute
-    let struct_attr = match ast.attrs.first() {
-        None => {
-            return Error::new_spanned(
-                ast,
-                "Must annotate struct with #[object_type(ObjectType::<variant>)]",
-            )
-            .to_compile_error()
-            .into();
-        }
-        Some(attr) => attr,
-    };
-
     let fields = get_fields(&ast);
 
     let properties_ident = match find_property_store(fields) {
@@ -29,8 +16,7 @@ pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into(),
     };
 
-    // Convert that to a type
-    let object_type = match parse_object_type(struct_attr) {
+    let object_type = match parse_object_type(&ast.attrs) {
         Ok(t) => t,
         Err(e) => return e.to_compile_error().into(),
     };
@@ -72,9 +58,11 @@ pub(crate) fn derive_impl(input: TokenStream) -> TokenStream {
 
             fn format_properties(&self) -> String {
                 let mut buf = String::new();
+                buf += "{\n";
                 for (k, v) in self.#properties_ident.iter() {
-                    buf += &format!("{}: {}\n", k, v);
+                    buf += &format!("    {}: {}\n", k, v);
                 }
+                buf += "}";
                 buf
             }
         }
@@ -132,12 +120,15 @@ impl Parse for ObjectTypeAttr {
     }
 }
 
-fn parse_object_type(attr: &Attribute) -> Result<ObjectTypeAttr> {
-    if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "object_type" {
-        // found the attr
-        let tokens: proc_macro::TokenStream = attr.tokens.clone().into();
-        syn::parse::<ObjectTypeAttr>(tokens)
-    } else {
-        Err(Error::new_spanned(attr, "expected #[object_type(<type>)]"))
+fn parse_object_type(attrs: &[Attribute]) -> Result<ObjectTypeAttr> {
+    for attr in attrs {
+        if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "object_type" {
+            let tokens: proc_macro::TokenStream = attr.tokens.clone().into();
+            return syn::parse::<ObjectTypeAttr>(tokens);
+        }
     }
+    return Err(Error::new_spanned(
+        attrs.first().unwrap(),
+        "could not find #[object_type(<type>)] attribute",
+    ));
 }
